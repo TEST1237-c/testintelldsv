@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Intel RAID Reinstallation</title>
+  <style>
+    /* ══════════════════════════════════════
+       VARIABLES & RESET
+    ══════════════════════════════════════ */
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3248;
+      --success: #3ecf8e;
+      --success-dim: rgba(62,207,142,.15);
+      --warning: #f5a623;
+      --danger: #e53e3e;
+      --info: #4299e1;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --yellow: #f6e05e;
+      --radius: 10px;
+      --tracker-w: 220px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      padding: 0 0 100px;
+    }
+
+    /* ══════════════════════════════════════
+       HEADER
+    ══════════════════════════════════════ */
+    header {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1a1d27 0%, #0d1020 100%);
+      border-bottom: 2px solid var(--success);
+      padding: 52px 24px 40px;
+      text-align: center;
+    }
+
+    /* animated glow orbs */
+    header::before,
+    header::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      animation: orb-drift 8s ease-in-out infinite alternate;
+    }
+    header::before {
+      width: 340px; height: 340px;
+      background: rgba(62,207,142,.12);
+      top: -100px; left: -80px;
+    }
+    header::after {
+      width: 260px; height: 260px;
+      background: rgba(66,153,225,.1);
+      bottom: -80px; right: -60px;
+      animation-delay: -4s;
+    }
+
+    @keyframes orb-drift {
+      from { transform: translate(0,0) scale(1); }
+      to   { transform: translate(30px, 20px) scale(1.12); }
+    }
+
+    header .badge {
+      position: relative;
+      display: inline-block;
+      background: var(--success-dim);
+      border: 1px solid var(--success);
+      color: var(--success);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+      animation: fade-down .6s ease both;
+    }
+
+    header h1 {
+      position: relative;
+      font-size: clamp(1.9rem, 4vw, 2.9rem);
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.2;
+      animation: fade-down .6s .1s ease both;
+    }
+
+    header h1 span {
+      color: var(--success);
+      text-shadow: 0 0 24px rgba(62,207,142,.5);
+    }
+
+    header p.sub {
+      position: relative;
+      margin-top: 12px;
+      color: var(--text-muted);
+      font-size: 14px;
+      animation: fade-down .6s .2s ease both;
+    }
+
+    /* progress bar under header */
+    .top-progress-bar {
+      height: 3px;
+      background: var(--border);
+      position: relative;
+    }
+    .top-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--success), #68d9b0);
+      width: 0%;
+      transition: width .4s ease;
+      box-shadow: 0 0 8px rgba(62,207,142,.6);
+    }
+
+    /* ══════════════════════════════════════
+       LAYOUT — sidebar + main
+    ══════════════════════════════════════ */
+    .page-layout {
+      display: flex;
+      align-items: flex-start;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 20px 0;
+      gap: 32px;
+    }
+
+    /* ══════════════════════════════════════
+       PROGRESS TRACKER (sidebar)
+    ══════════════════════════════════════ */
+    .tracker {
+      width: var(--tracker-w);
+      flex-shrink: 0;
+      position: sticky;
+      top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      animation: fade-right .5s .3s ease both;
+    }
+
+    .tracker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .tracker-header h3 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+    }
+
+    .tracker-counter {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--success);
+      background: var(--success-dim);
+      border: 1px solid var(--success);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* circular progress ring */
+    .tracker-ring {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .ring-wrap {
+      position: relative;
+      width: 72px;
+      height: 72px;
+    }
+
+    .ring-wrap svg {
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg { fill: none; stroke: var(--border); stroke-width: 5; }
+    .ring-fill {
+      fill: none;
+      stroke: var(--success);
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-dasharray: 188.5;
+      stroke-dashoffset: 188.5;
+      transition: stroke-dashoffset .6s cubic-bezier(.4,0,.2,1);
+      filter: drop-shadow(0 0 4px rgba(62,207,142,.5));
+    }
+
+    .ring-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--success);
+      line-height: 1.1;
+    }
+
+    .ring-text span {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    /* step items in tracker */
+    .tracker-steps { list-style: none; }
+
+    .tracker-step {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 5px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .15s, transform .15s;
+      margin-bottom: 2px;
+      border: 1px solid transparent;
+    }
+
+    .tracker-step:hover {
+      background: var(--surface2);
+      transform: translateX(2px);
+    }
+
+    .tracker-step.active {
+      background: var(--success-dim);
+      border-color: rgba(62,207,142,.3);
+    }
+
+    .tracker-step.done .ts-dot {
+      background: var(--success);
+      border-color: var(--success);
+    }
+    .tracker-step.done .ts-dot::after {
+      content: '✓';
+      font-size: 8px;
+      font-weight: 700;
+      color: #0f1117;
+    }
+
+    .tracker-step.active .ts-dot {
+      border-color: var(--success);
+      background: var(--success-dim);
+      box-shadow: 0 0 0 3px rgba(62,207,142,.2);
+    }
+
+    .ts-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .25s;
+      font-size: 8px;
+    }
+
+    .ts-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.3;
+      transition: color .2s;
+    }
+
+    .tracker-step.done .ts-label  { color: var(--success); }
+    .tracker-step.active .ts-label { color: var(--text); font-weight: 600; }
+
+    .tracker-reset {
+      display: block;
+      width: 100%;
+      margin-top: 14px;
+      padding: 7px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .tracker-reset:hover {
+      border-color: var(--danger);
+      color: #fc8181;
+      background: rgba(229,62,62,.07);
+    }
+
+    /* ══════════════════════════════════════
+       MAIN CONTENT
+    ══════════════════════════════════════ */
+    main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* ── Section headings ── */
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--success);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin: 40px 0 16px;
+      border-left: 4px solid var(--success);
+      padding-left: 12px;
+    }
+
+    /* ── Requirements ── */
+    .requirements {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .requirements ul { list-style: none; }
+    .requirements ul li {
+      padding: 7px 0 7px 28px;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+    .requirements ul li:last-child { border-bottom: none; }
+    .requirements ul li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    /* ── Recommended banner ── */
+    .recommended-banner {
+      background: linear-gradient(135deg, #2a2010 0%, #1f1a0d 100%);
+      border: 1px solid var(--warning);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-weight: 700;
+      color: var(--yellow);
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .recommended-banner .icon { font-size: 1.3rem; }
+
+    /* ── Why block ── */
+    details.why-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 32px;
+      overflow: hidden;
+    }
+
+    details.why-block summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 600;
+      color: var(--yellow);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+
+    details.why-block summary::-webkit-details-marker { display: none; }
+    details.why-block summary::before { content: "▶"; font-size: 10px; transition: transform .25s; }
+    details.why-block[open] summary::before { transform: rotate(90deg); }
+
+    details.why-block .why-content {
+      padding: 14px 18px 18px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+
+    .danger-note {
+      background: rgba(229,62,62,.12);
+      border: 1px solid var(--danger);
+      border-radius: 6px;
+      padding: 10px 14px;
+      color: #fc8181;
+      font-weight: 600;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 36px 0;
+    }
+
+    /* ── Hint boxes ── */
+    .hint {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      margin: 14px 0;
+      font-size: 14px;
+    }
+
+    .hint .hint-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
+    .hint.info    { background: rgba(66,153,225,.1);  border: 1px solid var(--info);    color: #90cdf4; }
+    .hint.warning { background: rgba(245,166,35,.1);   border: 1px solid var(--warning); color: #fbd38d; }
+    .hint.danger  { background: rgba(229,62,62,.1);    border: 1px solid var(--danger);  color: #fc8181; }
+    .hint.success { background: rgba(62,207,142,.1);   border: 1px solid var(--success); color: #9ae6b4; }
+    .hint strong { display: block; margin-bottom: 4px; }
+
+    /* ══════════════════════════════════════
+       STEPS
+    ══════════════════════════════════════ */
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--success);
+      color: #0f1117;
+      font-weight: 800;
+      font-size: 13px;
+      flex-shrink: 0;
+      transition: transform .2s, box-shadow .2s;
+    }
+
+    details.step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+      overflow: hidden;
+      transition: border-color .25s, box-shadow .25s, transform .2s;
+      /* fade-in via JS */
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    details.step.visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity .4s ease, transform .4s ease, border-color .25s, box-shadow .25s;
+    }
+
+    details.step:hover {
+      border-color: rgba(62,207,142,.5);
+      box-shadow: 0 0 0 1px rgba(62,207,142,.15), 0 4px 24px rgba(0,0,0,.3);
+    }
+
+    details.step[open] {
+      border-color: var(--success);
+      box-shadow: 0 0 0 1px rgba(62,207,142,.2), 0 6px 32px rgba(0,0,0,.35);
+    }
+
+    details.step[open] .step-number {
+      box-shadow: 0 0 12px rgba(62,207,142,.6);
+      transform: scale(1.08);
+    }
+
+    details.step summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 600;
+      color: var(--text);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+    }
+
+    details.step summary::-webkit-details-marker { display: none; }
+
+    details.step summary .chevron {
+      margin-left: auto;
+      color: var(--text-muted);
+      font-size: 11px;
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+    }
+
+    details.step[open] summary .chevron { transform: rotate(180deg); }
+
+    /* done checkmark on summary */
+    details.step.done summary::after {
+      content: '✓ Done';
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--success);
+      background: var(--success-dim);
+      border: 1px solid rgba(62,207,142,.3);
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 4px;
+    }
+
+    /* animate content open */
+    details.step .step-content {
+      padding: 0 18px 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      animation: content-open .25s ease;
+    }
+
+    @keyframes content-open {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Mark-done button */
+    .mark-done-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 16px;
+      padding: 7px 16px;
+      background: var(--success-dim);
+      border: 1px solid var(--success);
+      border-radius: 6px;
+      color: var(--success);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s, transform .15s, box-shadow .2s;
+    }
+
+    .mark-done-btn:hover {
+      background: rgba(62,207,142,.25);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(62,207,142,.2);
+    }
+
+    .mark-done-btn.is-done {
+      background: rgba(62,207,142,.2);
+      color: #9ae6b4;
+    }
+
+    /* ── Step content ── */
+    .step-content ol, .step-content ul { padding-left: 22px; margin: 10px 0; }
+    .step-content li { margin: 6px 0; }
+    .step-content p  { margin: 10px 0; }
+
+    .step-content a {
+      color: var(--success);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(62,207,142,.3);
+      transition: border-color .2s, color .2s;
+    }
+    .step-content a:hover { border-color: var(--success); }
+
+    .step-content code {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 13px;
+      font-family: 'Cascadia Code', 'Consolas', monospace;
+      color: var(--success);
+    }
+
+    kbd {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 8px;
+      font-size: 12px;
+      font-family: monospace;
+      color: var(--text);
+    }
+
+    /* ── Paths ── */
+    .paths {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+    }
+
+    .paths p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 0 0 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .paths ul { list-style: none; padding: 0; margin: 0; }
+    .paths ul li {
+      padding: 5px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .paths ul li:last-child { border-bottom: none; }
+    .paths ul li::before { content: "• "; color: var(--success); }
+
+    /* ── RAID options ── */
+    .raid-options { margin: 10px 0; }
+    .raid-option {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin: 8px 0;
+      font-size: 14px;
+      transition: border-color .2s;
+    }
+    .raid-option:hover { border-color: rgba(62,207,142,.4); }
+
+    .raid-option .opt-label {
+      display: inline-block;
+      background: var(--success);
+      color: #0f1117;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 3px;
+      margin-right: 8px;
+    }
+
+    /* ── Link button ── */
+    .link-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(62,207,142,.1);
+      border: 1px solid var(--success);
+      color: var(--success);
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none !important;
+      border-bottom: none !important;
+      margin: 8px 0;
+      transition: background .2s, transform .15s, box-shadow .2s;
+    }
+    .link-btn:hover {
+      background: rgba(62,207,142,.2);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(62,207,142,.2);
+    }
+
+    /* ── Embed URL ── */
+    .embed-url {
+      background: var(--surface2);
+      border: 1px solid var(--info);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 14px 0;
+    }
+    .embed-url p { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+    .embed-url a {
+      color: var(--info);
+      font-size: 14px;
+      word-break: break-all;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(66,153,225,.3);
+    }
+
+    /* ── Step images ── */
+    .step-img {
+      margin: 16px 0 4px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      text-align: center;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .step-img:hover {
+      border-color: rgba(62,207,142,.4);
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    }
+    .step-img img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border-radius: calc(var(--radius) - 1px);
+      transition: transform .3s ease;
+    }
+    .step-img:hover img { transform: scale(1.01); }
+
+    .step-img.narrow img { max-width: 375px; margin: 0 auto; }
+
+    /* ── Save & Exit ── */
+    .save-exit {
+      text-align: center;
+      padding: 14px;
+      background: var(--surface2);
+      border: 1px dashed var(--success);
+      border-radius: var(--radius);
+      color: var(--success);
+      font-weight: 700;
+      margin: 20px 0;
+      font-size: 15px;
+      animation: pulse-border 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(62,207,142,0); }
+      50%       { box-shadow: 0 0 0 4px rgba(62,207,142,.12); }
+    }
+
+    /* ── Final checklist ── */
+    .final-checklist {
+      background: rgba(62,207,142,.06);
+      border: 1px solid var(--success);
+      border-radius: var(--radius);
+      padding: 22px 26px;
+      margin-top: 36px;
+      box-shadow: 0 0 32px rgba(62,207,142,.07);
+    }
+
+    .final-checklist h3 {
+      color: var(--success);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .final-checklist ol { padding-left: 20px; }
+    .final-checklist ol li { margin: 8px 0; font-size: 14px; }
+    .final-checklist a { color: var(--success); }
+
+    /* ══════════════════════════════════════
+       FADE-IN ANIMATIONS (keyframes)
+    ══════════════════════════════════════ */
+    @keyframes fade-down {
+      from { opacity: 0; transform: translateY(-14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade-right {
+      from { opacity: 0; transform: translateX(-16px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* scroll-reveal for non-step elements */
+    .reveal {
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity .45s ease, transform .45s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ══════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════ */
+    @media (max-width: 860px) {
+      .tracker { display: none; }
+      .page-layout { padding: 24px 14px 0; }
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 32px 16px 28px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════ TOP PROGRESS BAR ══════════════ -->
+  <div class="top-progress-bar">
+    <div class="top-progress-fill" id="topBar"></div>
+  </div>
+
+  <!-- ══════════════ HEADER ══════════════ -->
+  <header>
+    <div class="badge">Intel Only</div>
+    <h1>(INTEL) <span>RAID</span> Reinstallation</h1>
+    <p class="sub">Step-by-step tutorial to reinstall Windows with Intel RAID / RST</p>
+  </header>
+
+  <!-- ══════════════ PAGE LAYOUT ══════════════ -->
+  <div class="page-layout">
+
+    <!-- ── PROGRESS TRACKER SIDEBAR ── -->
+    <aside class="tracker" id="tracker">
+      <div class="tracker-header">
+        <h3>Progress</h3>
+        <span class="tracker-counter" id="trackerCounter">0 / 12</span>
+      </div>
+
+      <!-- Circular ring -->
+      <div class="tracker-ring">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 72 72" width="72" height="72">
+            <circle class="ring-bg"   cx="36" cy="36" r="30"/>
+            <circle class="ring-fill" cx="36" cy="36" r="30" id="ringFill"/>
+          </svg>
+          <div class="ring-text">
+            <strong id="ringPct">0%</strong>
+            <span>done</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step list -->
+      <ul class="tracker-steps" id="trackerSteps">
+        <li class="tracker-step" data-step="1" onclick="scrollToStep(1)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Create Windows USB</div>
+        </li>
+        <li class="tracker-step" data-step="2" onclick="scrollToStep(2)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">RAID Driver Files</div>
+        </li>
+        <li class="tracker-step" data-step="3" onclick="scrollToStep(3)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Boot into BIOS</div>
+        </li>
+        <li class="tracker-step" data-step="4" onclick="scrollToStep(4)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Configure RAID</div>
+        </li>
+        <li class="tracker-step" data-step="5" onclick="scrollToStep(5)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Disable CSM / UEFI</div>
+        </li>
+        <li class="tracker-step" data-step="6" onclick="scrollToStep(6)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Create RAID Array</div>
+        </li>
+        <li class="tracker-step" data-step="7" onclick="scrollToStep(7)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Install Windows</div>
+        </li>
+        <li class="tracker-step" data-step="8" onclick="scrollToStep(8)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Load RAID Drivers</div>
+        </li>
+        <li class="tracker-step" data-step="9" onclick="scrollToStep(9)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Complete Install</div>
+        </li>
+        <li class="tracker-step" data-step="10" onclick="scrollToStep(10)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Offline Account</div>
+        </li>
+        <li class="tracker-step" data-step="11" onclick="scrollToStep(11)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Privacy Settings</div>
+        </li>
+        <li class="tracker-step" data-step="12" onclick="scrollToStep(12)">
+          <div class="ts-dot"></div>
+          <div class="ts-label">Verify Serials</div>
+        </li>
+      </ul>
+
+      <button class="tracker-reset" onclick="resetProgress()">↺ Reset progress</button>
+    </aside>
+
+    <!-- ══════════════ MAIN CONTENT ══════════════ -->
+    <main>
+
+      <!-- Requirements -->
+      <h2 class="reveal">Requirements</h2>
+      <div class="requirements reveal">
+        <ul>
+          <li>A USB with <strong>8GB</strong> of storage space (32GB Max)</li>
+          <li>Decent understanding of how to generally work with computers</li>
+          <li>Intel RST compatible motherboard (confirmed via compatibility checker)</li>
+        </ul>
+      </div>
+
+      <!-- Recommended banner -->
+      <div class="recommended-banner reveal">
+        <span class="icon">⭐</span>
+        THIS WAY OF REINSTALLING IS HIGHLY RECOMMENDED!
+      </div>
+
+      <details class="why-block reveal">
+        <summary>WHY IS THIS HIGHLY RECOMMENDED?</summary>
+        <div class="why-content">
+          <p>
+            The reason this reinstallation is recommended, especially for people with a lot of HWID bans on their PC,
+            is because this reinstallation method <strong>changes your SSD/NVMe serials</strong> as well.
+            This is an important factor and almost a 99% guaranteed successful spoof.
+          </p>
+          <div class="danger-note">⚠ Reminder: this is for Intel Only.</div>
+        </div>
+      </details>
+
+      <hr class="reveal" />
+
+      <!-- Hints -->
+      <div class="hint info reveal">
+        <span class="hint-icon">ℹ️</span>
+        <div>
+          <strong>Intel RAID Compatibility</strong>
+          Haven't checked your compatibility yet? Run the
+          <a href="https://mega.nz/file/PApiUbrC#OaBTTF9pJj08XoNhHYr9hY2kNj5Htasya5gECy2MWCU" target="_blank">Intel RAID Compatibility Checker</a>
+          to see if your system supports RAID. If it does not, follow the normal reinstallation method instead.
+        </div>
+      </div>
+
+      <div class="hint danger reveal">
+        <span class="hint-icon">🚨</span>
+        <div>
+          <strong>Before You Begin — Critical</strong>
+          Ensure you have <strong>never permanently spoofed your motherboard name</strong>. If you have,
+          the RAID drivers you download may not match your actual hardware and the installation will fail.
+        </div>
+      </div>
+
+      <hr class="reveal" />
+
+      <!-- ══ STEPS ══ -->
+
+      <!-- Step 1 -->
+      <details class="step" id="step-1" data-step="1" open>
+        <summary>
+          <span class="step-number">1</span>
+          Create Windows USB
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <div class="embed-url">
+            <p>Microsoft Official Download</p>
+            <a href="https://www.microsoft.com/en-us/software-download/windows10" target="_blank">
+              https://www.microsoft.com/en-us/software-download/windows10
+            </a>
+          </div>
+          <ol>
+            <li>Download <strong>Media Creation Tool</strong> from the link above and click <em>"Download Now"</em></li>
+            <li>Open the Media Creation Tool <strong>as an administrator</strong></li>
+            <li>Select <strong>"Create Installation media (USB Flash drive)"</strong></li>
+            <li>Use all the recommended options, continue, and wait for it to finish</li>
+          </ol>
+          <div class="step-img">
+            <img src="https://content.gitbook.com/content/cJwRkz3UpQnav736fzxS/blobs/bnm1QfWeTDwjTIdofZWm/image.png" alt="Media Creation Tool screenshot" loading="lazy" />
+          </div>
+          <button class="mark-done-btn" onclick="markDone(1, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 2 -->
+      <details class="step" id="step-2" data-step="2">
+        <summary>
+          <span class="step-number">2</span>
+          Intel RAID Driver Files
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <a class="link-btn" href="https://streamable.com/viekog" target="_blank">
+            ▶ Watch Driver Download Guide
+          </a>
+          <div class="hint info">
+            <span class="hint-icon">📸</span>
+            <div>
+              <strong>Remember Your Disk Serials!</strong>
+              Make a photo of them on your phone — check with <code>Disk serial checker.exe</code>
+            </div>
+          </div>
+          <div class="hint warning">
+            <span class="hint-icon">⚠️</span>
+            <div>
+              <strong>Network Drivers</strong>
+              When reinstalling Windows, most modern systems will automatically detect basic Ethernet drivers.
+              In some cases, you may need to manually install them. Download your LAN drivers from your
+              motherboard manufacturer's site (e.g. search <em>"Asus B550 Network drivers"</em>) and put them
+              on the USB drive just to be safe.
+            </div>
+          </div>
+          <button class="mark-done-btn" onclick="markDone(2, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 3 -->
+      <details class="step" id="step-3" data-step="3">
+        <summary>
+          <span class="step-number">3</span>
+          Boot into BIOS &amp; Enable RAID Mode
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>
+            Restart your computer and enter the BIOS.
+            <a href="https://youtu.be/mb9X9_NNxuo?si=ZHwFa0l6Tddw7Gay&t=60" target="_blank">How to Easily Boot into BIOS ↗</a>
+            — then navigate to <strong>Advanced Mode</strong> and locate the SATA/NVMe Storage configuration.
+          </p>
+          <div class="paths">
+            <p>🔍 Finding SATA Mode &amp; M.2 RAID Support — Common Paths</p>
+            <ul>
+              <li><strong>Advanced Mode</strong> › PCH Storage Configuration <em>(Most Common)</em></li>
+              <li><strong>Advanced Mode</strong> › Storage Configuration</li>
+              <li><strong>Advanced Mode</strong> › SA (System Agent) › VMD Controller</li>
+              <li><strong>Advanced Mode</strong> › Onboard Devices / Integrated Peripherals</li>
+              <li><strong>Advanced Mode</strong> › VMD Controller</li>
+            </ul>
+          </div>
+          <div class="step-img">
+            <img src="https://content.gitbook.com/content/cJwRkz3UpQnav736fzxS/blobs/isV2oUccufGLSo516bMN/image.png" alt="BIOS RAID mode location screenshot" loading="lazy" />
+          </div>
+          <button class="mark-done-btn" onclick="markDone(3, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 4 -->
+      <details class="step" id="step-4" data-step="4">
+        <summary>
+          <span class="step-number">4</span>
+          Configure RAID Settings
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <div class="hint info">
+            <span class="hint-icon">💡</span>
+            <div>
+              <strong>VMD Controller Found?</strong>
+              If you see a <strong>"VMD Controller"</strong> option, simply <em>enable it</em>
+              and skip the SATA Mode settings below.
+            </div>
+          </div>
+          <div class="raid-options">
+            <div class="raid-option">
+              <span class="opt-label">A</span>
+              <strong>SATA Mode / Controller</strong> → RAID Mode / RST Controlled / Optane Mode
+            </div>
+            <div class="raid-option">
+              <span class="opt-label">B</span>
+              <strong>M.2_1 RST PCIE Storage RAID Support</strong> → Enabled / RST Controlled
+            </div>
+            <div class="raid-option">
+              <span class="opt-label">C</span>
+              <strong>M.2_2 RST PCIE Storage RAID Support</strong> → Enabled / RST Controlled
+            </div>
+          </div>
+          <div class="hint info">
+            <span class="hint-icon">ℹ️</span>
+            <div>The exact names may differ on your motherboard — use common sense!</div>
+          </div>
+          <button class="mark-done-btn" onclick="markDone(4, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 5 -->
+      <details class="step" id="step-5" data-step="5">
+        <summary>
+          <span class="step-number">5</span>
+          Disable CSM &amp; Enable UEFI
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>Navigate to the <strong>Boot</strong> tab and configure:</p>
+          <ul>
+            <li><strong>Boot</strong> › CSM › <code>Disabled</code></li>
+          </ul>
+          <div class="hint info">
+            <span class="hint-icon">ℹ️</span>
+            <div>If you can't find CSM, ensure <strong>UEFI</strong> is enabled instead.</div>
+          </div>
+          <button class="mark-done-btn" onclick="markDone(5, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <div class="save-exit reveal">💾 Save &amp; Exit the BIOS, then re-enter BIOS again!</div>
+
+      <!-- Step 6 -->
+      <details class="step" id="step-6" data-step="6">
+        <summary>
+          <span class="step-number">6</span>
+          Create RAID Array
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>Once back in BIOS, navigate to <strong>Advanced › Intel(R) RST › Create RAID Volume</strong></p>
+          <ol>
+            <li><strong>Name</strong> → Anything of your choice</li>
+            <li><strong>RAID Level</strong> → <code>RAID0 (Stripe)</code></li>
+            <li><strong>Select Disks</strong> → Choose the disks you want to RAID <em>(can't mix different disk types)</em></li>
+            <li><strong>Create Volume</strong> → Click to create the array</li>
+          </ol>
+          <button class="mark-done-btn" onclick="markDone(6, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 7 -->
+      <details class="step" id="step-7" data-step="7">
+        <summary>
+          <span class="step-number">7</span>
+          Install Windows
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p><strong>Save &amp; Exit</strong> the BIOS and make sure your Windows USB is plugged in. You should see the Windows setup screen.</p>
+          <div class="step-img">
+            <img src="https://content.gitbook.com/content/cJwRkz3UpQnav736fzxS/blobs/CgvYoZAXCQh08PnjO0Bm/image.png" alt="Windows setup screen" loading="lazy" />
+          </div>
+          <ol>
+            <li>Change language settings if needed, press <strong>Next</strong></li>
+            <li>If asked for product key, select <strong>"I don't have a product key"</strong></li>
+            <li>Select <strong>Windows 10/11 Pro Version</strong> — Important!</li>
+            <li>Accept the TOS and press <strong>Next</strong></li>
+          </ol>
+          <button class="mark-done-btn" onclick="markDone(7, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 8 -->
+      <details class="step" id="step-8" data-step="8">
+        <summary>
+          <span class="step-number">8</span>
+          Load RAID Drivers
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>At the <strong>"Where do you want to install Windows?"</strong> step, click <strong>Load driver</strong>:</p>
+          <div class="step-img">
+            <img src="https://content.gitbook.com/content/cJwRkz3UpQnav736fzxS/blobs/n2QNL84g5fhTCS6G5LLT/image.png" alt="Load driver screen" loading="lazy" />
+          </div>
+          <ol>
+            <li>Click <strong>Browse</strong> in the popup</li>
+            <li>Navigate to your USB stick</li>
+            <li>Select the folder containing your Intel RST drivers → Press <strong>OK</strong></li>
+            <li>Press <kbd>Ctrl</kbd> + <kbd>A</kbd> to select all drivers, then click <strong>Next</strong></li>
+          </ol>
+          <div class="step-img narrow">
+            <img src="https://content.gitbook.com/content/cJwRkz3UpQnav736fzxS/blobs/hzZkdE5ymRlNcSI9HWMI/image.png" alt="Select all drivers screenshot" loading="lazy" />
+          </div>
+          <button class="mark-done-btn" onclick="markDone(8, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 9 -->
+      <details class="step" id="step-9" data-step="9">
+        <summary>
+          <span class="step-number">9</span>
+          Complete Installation
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>Select the disk you want to install Windows on and press <strong>Next</strong>. Continue with the installation process.</p>
+          <button class="mark-done-btn" onclick="markDone(9, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 10 -->
+      <details class="step" id="step-10" data-step="10">
+        <summary>
+          <span class="step-number">10</span>
+          Create Offline Account
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>The installation process should start. Make sure to <strong>create an offline account</strong>.</p>
+          <div class="hint warning">
+            <span class="hint-icon">⚠️</span>
+            <div>
+              <strong>Windows 11 Users</strong>
+              On Windows 11, creating an offline account is no longer possible through the normal setup.
+              Either <strong>make a new Microsoft account</strong> or search YouTube for
+              <em>"latest offline account create method Windows 11"</em>. One workaround is to
+              <strong>disconnect your internet</strong> once you're at that step.
+            </div>
+          </div>
+          <div class="step-img">
+            <img src="https://content.gitbook.com/content/cJwRkz3UpQnav736fzxS/blobs/Y8IwXUsGBZZFiB62fp9g/image.png" alt="Offline account creation screen" loading="lazy" />
+          </div>
+          <button class="mark-done-btn" onclick="markDone(10, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 11 -->
+      <details class="step" id="step-11" data-step="11">
+        <summary>
+          <span class="step-number">11</span>
+          Turn OFF Privacy Settings
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>When prompted during setup, <strong>turn off all privacy settings</strong> before proceeding.</p>
+          <div class="step-img">
+            <img src="https://content.gitbook.com/content/cJwRkz3UpQnav736fzxS/blobs/Z3Gp91akXH8Q0dSfxeYb/image.png" alt="Privacy settings screen" loading="lazy" />
+          </div>
+          <button class="mark-done-btn" onclick="markDone(11, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Step 12 -->
+      <details class="step" id="step-12" data-step="12">
+        <summary>
+          <span class="step-number">12</span>
+          Verify Serial Changes
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="step-content">
+          <p>
+            Use <code>Disk serial checker.exe</code> and verify that the serials have changed.
+            Compare old vs new serials. If disk serials remain unchanged, contact support and we will find a solution.
+          </p>
+          <button class="mark-done-btn" onclick="markDone(12, this)">✓ Mark as done</button>
+        </div>
+      </details>
+
+      <!-- Final Checklist -->
+      <div class="final-checklist reveal">
+        <h3>✅ After Reinstallation Checklist</h3>
+        <ol>
+          <li>Make an <strong>offline account</strong> or a <strong>new Microsoft account</strong>. Don't log into old ones.</li>
+          <li>Do not log into <strong>OneDrive</strong>, <strong>GeForce Experience</strong>, or <strong>Medal</strong> using the same account.</li>
+          <li>
+            Install
+            <a href="https://aka.ms/vs/17/release/vc_redist.x64.exe" target="_blank">VC++ Redistributable</a>
+            to prevent errors with applications.
+          </li>
+        </ol>
+      </div>
+
+    </main>
+  </div><!-- /page-layout -->
+
+  <!-- ══════════════════════════════════════
+       JAVASCRIPT
+  ══════════════════════════════════════ -->
+  <script>
+    const TOTAL = 12;
+    const STORAGE_KEY = 'raid_progress';
+
+    /* ── State ── */
+    let doneSteps = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+
+    /* ── On load: restore progress & init animations ── */
+    document.addEventListener('DOMContentLoaded', () => {
+      initScrollReveal();
+      restoreProgress();
+      updateTracker();
+    });
+
+    /* ── Scroll-reveal (IntersectionObserver) ── */
+    function initScrollReveal() {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((e, i) => {
+          if (e.isIntersecting) {
+            // stagger steps slightly
+            const delay = e.target.classList.contains('step') ? i * 40 : 0;
+            setTimeout(() => e.target.classList.add('visible'), delay);
+            observer.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.08 });
+
+      document.querySelectorAll('.step, .reveal').forEach(el => observer.observe(el));
+    }
+
+    /* ── Mark step done ── */
+    function markDone(stepNum, btn) {
+      const detail = document.getElementById('step-' + stepNum);
+      if (doneSteps.has(stepNum)) {
+        // toggle off
+        doneSteps.delete(stepNum);
+        detail.classList.remove('done');
+        btn.textContent = '✓ Mark as done';
+        btn.classList.remove('is-done');
+      } else {
+        doneSteps.add(stepNum);
+        detail.classList.add('done');
+        btn.textContent = '✓ Done!';
+        btn.classList.add('is-done');
+
+        // auto-open next step
+        const next = document.getElementById('step-' + (stepNum + 1));
+        if (next && !next.open) {
+          next.open = true;
+          next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+      saveProgress();
+      updateTracker();
+    }
+
+    /* ── Restore progress from localStorage ── */
+    function restoreProgress() {
+      doneSteps.forEach(n => {
+        const detail = document.getElementById('step-' + n);
+        if (!detail) return;
+        detail.classList.add('done');
+        const btn = detail.querySelector('.mark-done-btn');
+        if (btn) { btn.textContent = '✓ Done!'; btn.classList.add('is-done'); }
+      });
+    }
+
+    /* ── Save to localStorage ── */
+    function saveProgress() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...doneSteps]));
+    }
+
+    /* ── Reset progress ── */
+    function resetProgress() {
+      doneSteps.clear();
+      localStorage.removeItem(STORAGE_KEY);
+      document.querySelectorAll('.step').forEach(d => {
+        d.classList.remove('done');
+        const btn = d.querySelector('.mark-done-btn');
+        if (btn) { btn.textContent = '✓ Mark as done'; btn.classList.remove('is-done'); }
+      });
+      updateTracker();
+    }
+
+    /* ── Update sidebar tracker & ring ── */
+    function updateTracker() {
+      const count = doneSteps.size;
+      const pct   = Math.round((count / TOTAL) * 100);
+
+      // counter text
+      document.getElementById('trackerCounter').textContent = count + ' / ' + TOTAL;
+
+      // ring
+      const circumference = 188.5; // 2 * π * 30
+      const offset = circumference - (pct / 100) * circumference;
+      document.getElementById('ringFill').style.strokeDashoffset = offset;
+      document.getElementById('ringPct').childNodes[0].textContent = pct + '%';
+
+      // top bar
+      document.getElementById('topBar').style.width = pct + '%';
+
+      // sidebar items
+      document.querySelectorAll('.tracker-step').forEach(li => {
+        const n = parseInt(li.dataset.step);
+        li.classList.toggle('done', doneSteps.has(n));
+        li.classList.toggle('active', !doneSteps.has(n) && n === getNextStep());
+      });
+    }
+
+    function getNextStep() {
+      for (let i = 1; i <= TOTAL; i++) {
+        if (!doneSteps.has(i)) return i;
+      }
+      return null;
+    }
+
+    /* ── Scroll to step from tracker ── */
+    function scrollToStep(n) {
+      const el = document.getElementById('step-' + n);
+      if (!el) return;
+      if (!el.open) el.open = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ── Highlight active tracker item on scroll ── */
+    const stepEls = document.querySelectorAll('.step');
+    const scrollObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const n = parseInt(e.target.dataset.step);
+          document.querySelectorAll('.tracker-step').forEach(li => {
+            li.classList.toggle('active', parseInt(li.dataset.step) === n && !doneSteps.has(n));
+          });
+        }
+      });
+    }, { threshold: 0.3 });
+
+    stepEls.forEach(el => scrollObserver.observe(el));
+  </script>
+
+</body>
+</html>
